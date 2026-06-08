@@ -1,0 +1,23 @@
+# IDEA & Eclipse
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+
+# Maven/Gradle build output
+target/
+build/
+out/
+
+# Logs
+logs/
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# 忽略所有环境敏感的本地配置文件
+*-dev.properties
+*-dev.yml
