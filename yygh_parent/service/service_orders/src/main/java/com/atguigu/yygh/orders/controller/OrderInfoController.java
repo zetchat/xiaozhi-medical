@@ -6,7 +6,6 @@ import com.alibaba.csp.sentinel.slots.block.flow.param.ParamFlowRule;
 import com.alibaba.csp.sentinel.slots.block.flow.param.ParamFlowRuleManager;
 import com.atguigu.yygh.common.result.R;
 import com.atguigu.yygh.orders.dto.BookingRequest;
-import com.atguigu.yygh.orders.dto.HisLockResponse;
 import com.atguigu.yygh.orders.service.OrderInfoService;
 import com.atguigu.yygh.vo.order.OrderCountQueryVo;
 import org.springframework.beans.factory.annotation.Autowired;

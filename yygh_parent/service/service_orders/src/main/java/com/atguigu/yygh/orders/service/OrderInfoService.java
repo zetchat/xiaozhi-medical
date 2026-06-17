@@ -2,9 +2,7 @@ package com.atguigu.yygh.orders.service;
 
 import com.atguigu.yygh.model.order.OrderInfo;
 import com.atguigu.yygh.vo.order.OrderCountQueryVo;
-import com.atguigu.yygh.vo.order.OrderCountVo;
 import com.atguigu.yygh.orders.dto.BookingRequest;
-import com.atguigu.yygh.orders.dto.HisLockResponse;
 import com.baomidou.mybatisplus.extension.service.IService;
 
 import java.util.List;

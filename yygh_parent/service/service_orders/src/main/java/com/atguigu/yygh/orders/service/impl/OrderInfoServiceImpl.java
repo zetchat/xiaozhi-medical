@@ -6,6 +6,8 @@ import com.atguigu.yygh.enums.OrderStatusEnum;
 import com.atguigu.yygh.hosp.client.HospitalFeignClient;
 import com.atguigu.yygh.model.order.OrderInfo;
 import com.atguigu.yygh.model.user.Patient;
+import com.atguigu.yygh.client_dto.HisLockResponse;
+import com.atguigu.yygh.order.client.HisRpcClient;
 import com.atguigu.yygh.orders.mapper.OrderInfoMapper;
 import com.atguigu.yygh.orders.service.OrderInfoService;
 import com.atguigu.yygh.orders.utils.HttpRequestHelper;
@@ -17,8 +19,9 @@ import com.atguigu.yygh.vo.msm.MsmVo;
 import com.atguigu.yygh.vo.order.OrderCountQueryVo;
 import com.atguigu.yygh.vo.order.OrderCountVo;
 import com.atguigu.yygh.vo.order.OrderMqVo;
+import com.atguigu.yygh.orders.mapper.TOrderMapper;
+import com.atguigu.yygh.orders.mapper.TLocalMessageLogMapper;
 import com.atguigu.yygh.orders.dto.BookingRequest;
-import com.atguigu.yygh.orders.dto.HisLockResponse;
 import com.atguigu.yygh.model.order.TOrder;
 import com.atguigu.yygh.model.order.TLocalMessageLog;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -59,11 +62,18 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
     @Autowired
     private RabbitTemplate rabbitTemplate;
 
-    // TODO: 之后需要替换为真正的RedisService和HisRpcClient
+    @Autowired
+    private TOrderMapper tOrderMapper;
+
+    @Autowired
+    private TLocalMessageLogMapper messageLogMapper;
+
+    @Autowired
+    private HisRpcClient hisRpcClient;
+
+    // TODO: 之后需要替换为真正的RedisService
     // @Autowired
     // private RedisService redisService;
-    // @Autowired
-    // private HisRpcClient hisRpcClient;
 
     @Override
     public String grabTicket(BookingRequest request) {
@@ -77,8 +87,7 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
         HisLockResponse hisResponse = null;
         try {
             // 2. 同步调用 HIS 接口锁定真实号源 (前置校验，不在本地事务内)
-            // hisResponse = hisRpcClient.lockTicket(request.getPatientId(), request.getScheduleId());
-            hisResponse = HisLockResponse.success("HIS_SEQ_" + System.currentTimeMillis()); // 模拟HIS锁定成功
+            hisResponse = hisRpcClient.lockTicket(request.getPatientId(), request.getScheduleId());
 
             if (!hisResponse.isSuccess()) {
                 // HIS锁定失败，立刻回滚Redis库存
@@ -99,7 +108,7 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
             // 【核心修复2】：防御 HIS “幽灵占号”，尽力而为逆向回滚
             if (hisResponse != null && hisResponse.isSuccess()) {
                 try {
-                    // hisRpcClient.unlockTicket(hisResponse.getHisSeqNo());
+                    hisRpcClient.unlockTicket(hisResponse.getHisSeqNo());
                     log.info("本地异常，已成功回滚 HIS 号源: {}", hisResponse.getHisSeqNo());
                 } catch (Exception ex) {
                     // 如果这步也失败，记录 Error 日志，交由每日凌晨的定时对账系统处理
@@ -122,16 +131,14 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
         order.setHisSeqNo(hisSeqNo);
         order.setScheduleId(request.getScheduleId());
         order.setPatientId(request.getPatientId());
-        // orderMapper.insert(order);
-        // TODO: 需要引入 TOrderMapper
+        tOrderMapper.insert(order);
 
         // 3.2 本地 DB 写消息表 (状态为 NEW)
         TLocalMessageLog msg = new TLocalMessageLog();
         msg.setMsgId(IdWorker.getIdStr());
         msg.setOrderId(orderId);
         msg.setStatus("NEW");
-        // messageLogMapper.insert(msg);
-        // TODO: 需要引入 TLocalMessageLogMapper
+        messageLogMapper.insert(msg);
 
         // 3.3 事务完美闭环后，触发 MQ 发送
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {

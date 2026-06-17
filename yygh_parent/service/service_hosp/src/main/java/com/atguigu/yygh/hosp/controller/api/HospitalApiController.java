@@ -8,6 +8,7 @@ import com.atguigu.yygh.hosp.service.ScheduleService;
 import com.atguigu.yygh.hosp.utils.HttpRequestHelper;
 import com.atguigu.yygh.model.hosp.Hospital;
 import com.atguigu.yygh.model.hosp.Schedule;
+import com.atguigu.yygh.client_dto.HisLockResponse;
 import com.atguigu.yygh.vo.hosp.DepartmentVo;
 import com.atguigu.yygh.vo.hosp.HospitalQueryVo;
 import com.atguigu.yygh.vo.hosp.ScheduleOrderVo;
@@ -59,6 +60,27 @@ public class HospitalApiController {
     public ScheduleOrderVo getScheduleOrderVo(@PathVariable("scheduleId") String scheduleId) {
         ScheduleOrderVo orderVo = scheduleService.getScheduleOrderVo(scheduleId);
         return orderVo;
+    }
+
+    /**
+     * 同步调用 HIS 接口锁定真实号源 (Mock)
+     */
+    @PostMapping("/inner/lockTicket")
+    public HisLockResponse lockTicket(@RequestParam("patientId") String patientId, @RequestParam("scheduleId") String scheduleId) {
+        // TODO: 真正实现时应该操作 his_lock_record 和 his_schedule_detail 表，使用乐观锁保证幂等和防超卖
+        // 这里只是一个Mock实现，模拟HIS返回成功
+        String hisSeqNo = "HIS_SEQ_" + System.currentTimeMillis() + "_" + scheduleId;
+        return HisLockResponse.success(hisSeqNo);
+    }
+
+    /**
+     * 调用 HIS 接口解锁号源 (Mock)
+     */
+    @PostMapping("/inner/unlockTicket")
+    public Result unlockTicket(@RequestParam("hisSeqNo") String hisSeqNo) {
+        // TODO: 真正实现时应该更新 his_lock_record 状态，并将号源释放
+        // 这里只是一个Mock实现，模拟HIS解锁成功
+        return Result.ok();
     }
 
 

@@ -8,7 +8,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -18,9 +17,8 @@ import java.util.List;
 @Slf4j
 public class MessageCompensationJob {
 
-    // TODO: 待生成Mapper和引入AlertService后解除注释
-    // @Autowired
-    // private TLocalMessageLogMapper messageLogMapper;
+    @Autowired
+    private TLocalMessageLogMapper messageLogMapper;
     
     @Autowired
     private RabbitTemplate rabbitTemplate;
@@ -33,18 +31,18 @@ public class MessageCompensationJob {
         log.info("开始执行定时补偿任务...");
         
         // 捞出创建时间超过1分钟，且状态仍为 NEW 的记录
-        // List<TLocalMessageLog> stagnantMsgs = messageLogMapper.findStagnantMessages();
-        List<TLocalMessageLog> stagnantMsgs = new ArrayList<>(); // 模拟获取到的滞留消息
+        List<TLocalMessageLog> stagnantMsgs = messageLogMapper.findStagnantMessages();
 
         for (TLocalMessageLog msg : stagnantMsgs) {
             if (msg.getRetryCount() >= 3) {
-                // messageLogMapper.updateStatus(msg.getMsgId(), "FAIL");
+                messageLogMapper.updateStatus(msg.getMsgId(), "FAIL");
+                // TODO: 接入真正的短信/钉钉告警
                 // alertService.sendDingTalk("【MQ告警】延迟关单消息重试3次失败，请检查 MQ 集群状态！");
                 log.error("【MQ告警】延迟关单消息重试3次失败，msgId: {}", msg.getMsgId());
                 continue;
             }
 
-            // messageLogMapper.incrementRetryCount(msg.getMsgId());
+            messageLogMapper.incrementRetryCount(msg.getMsgId());
             
             // 重新投递
             rabbitTemplate.convertAndSend("delay_exchange", "delay_routing_key", msg, message -> {

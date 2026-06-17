@@ -1,4 +1,4 @@
-package com.atguigu.yygh.orders.dto;
+package com.atguigu.yygh.client_dto;
 
 import lombok.Data;
 
