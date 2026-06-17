@@ -3,6 +3,7 @@ package com.atguigu.yygh.hosp.controller.api;
 import com.atguigu.yygh.common.result.R;
 import com.atguigu.yygh.common.result.Result;
 import com.atguigu.yygh.hosp.service.DepartmentService;
+import com.atguigu.yygh.hosp.service.HisBusinessService;
 import com.atguigu.yygh.hosp.service.HospitalService;
 import com.atguigu.yygh.hosp.service.ScheduleService;
 import com.atguigu.yygh.hosp.utils.HttpRequestHelper;
@@ -36,6 +37,9 @@ public class HospitalApiController {
     @Autowired
     private ScheduleService scheduleService;
 
+    @Autowired
+    private HisBusinessService hisBusinessService;
+
 
     @Operation(description = "根据科室名称，日期，时间和医生查询是否有号源")
     @PostMapping("selectSchedule")
@@ -63,24 +67,19 @@ public class HospitalApiController {
     }
 
     /**
-     * 同步调用 HIS 接口锁定真实号源 (Mock)
+     * 同步调用 HIS 接口锁定真实号源
      */
     @PostMapping("/inner/lockTicket")
     public HisLockResponse lockTicket(@RequestParam("patientId") String patientId, @RequestParam("scheduleId") String scheduleId) {
-        // TODO: 真正实现时应该操作 his_lock_record 和 his_schedule_detail 表，使用乐观锁保证幂等和防超卖
-        // 这里只是一个Mock实现，模拟HIS返回成功
-        String hisSeqNo = "HIS_SEQ_" + System.currentTimeMillis() + "_" + scheduleId;
-        return HisLockResponse.success(hisSeqNo);
+        return hisBusinessService.lockTicket(patientId, scheduleId);
     }
 
     /**
-     * 调用 HIS 接口解锁号源 (Mock)
+     * 调用 HIS 接口解锁号源
      */
     @PostMapping("/inner/unlockTicket")
     public Result unlockTicket(@RequestParam("hisSeqNo") String hisSeqNo) {
-        // TODO: 真正实现时应该更新 his_lock_record 状态，并将号源释放
-        // 这里只是一个Mock实现，模拟HIS解锁成功
-        return Result.ok();
+        return hisBusinessService.unlockTicket(hisSeqNo);
     }
 
 

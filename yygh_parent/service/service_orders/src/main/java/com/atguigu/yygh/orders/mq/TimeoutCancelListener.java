@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.atguigu.yygh.orders.service.RedisService;
 import com.atguigu.yygh.orders.mapper.TOrderMapper;
 
 /**
@@ -24,9 +25,8 @@ public class TimeoutCancelListener {
 
     @Autowired
     private TOrderMapper orderMapper;
-    // TODO: 待引入Redis后解除注释
-    // @Autowired
-    // private RedisService redisService;
+    @Autowired
+    private RedisService redisService;
     @Autowired
     private HisRpcClient hisRpcClient;
 
@@ -56,7 +56,7 @@ public class TimeoutCancelListener {
             orderMapper.updateStatus(orderId, "CANCELLED");
 
             // 4. 号源退回 Redis 票池
-            // redisService.incrementStock("TICKET_POOL:" + order.getScheduleId());
+            redisService.incrementStock("TICKET_POOL:" + order.getScheduleId());
             
             log.info("关单完成，资源已全部释放: {}", orderId);
         }

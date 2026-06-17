@@ -9,6 +9,7 @@ import com.atguigu.yygh.model.user.Patient;
 import com.atguigu.yygh.client_dto.HisLockResponse;
 import com.atguigu.yygh.order.client.HisRpcClient;
 import com.atguigu.yygh.orders.mapper.OrderInfoMapper;
+import com.atguigu.yygh.orders.service.RedisService;
 import com.atguigu.yygh.orders.service.OrderInfoService;
 import com.atguigu.yygh.orders.utils.HttpRequestHelper;
 import com.atguigu.yygh.rabbit.RabbitService;
@@ -71,15 +72,14 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
     @Autowired
     private HisRpcClient hisRpcClient;
 
-    // TODO: 之后需要替换为真正的RedisService
-    // @Autowired
-    // private RedisService redisService;
+    @Autowired
+    private RedisService redisService;
 
     @Override
     public String grabTicket(BookingRequest request) {
         // 1. Redis 预扣库存 (Lua脚本保证原子性)
-        // boolean hasStock = redisService.decrementStock("TICKET_POOL:" + request.getScheduleId());
-        boolean hasStock = true; // 模拟扣减成功
+        boolean hasStock = redisService.decrementStock("TICKET_POOL:" + request.getScheduleId());
+        // boolean hasStock = true; // 模拟扣减成功
         if (!hasStock) {
             throw new YyghException(20001, "号源已满，请选择其他医生");
         }
@@ -91,7 +91,7 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
 
             if (!hisResponse.isSuccess()) {
                 // HIS锁定失败，立刻回滚Redis库存
-                // redisService.incrementStock("TICKET_POOL:" + request.getScheduleId());
+                redisService.incrementStock("TICKET_POOL:" + request.getScheduleId());
                 throw new YyghException(20001, "HIS系统号源锁定失败: " + hisResponse.getMsg());
             }
 
@@ -103,7 +103,7 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
             log.error("本地系统落盘异常，挂号失败", e);
 
             // 【核心修复1】：本地崩溃，回滚Redis
-            // redisService.incrementStock("TICKET_POOL:" + request.getScheduleId());
+            redisService.incrementStock("TICKET_POOL:" + request.getScheduleId());
 
             // 【核心修复2】：防御 HIS “幽灵占号”，尽力而为逆向回滚
             if (hisResponse != null && hisResponse.isSuccess()) {
