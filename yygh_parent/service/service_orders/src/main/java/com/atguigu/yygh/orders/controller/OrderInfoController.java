@@ -5,7 +5,8 @@ import com.alibaba.csp.sentinel.slots.block.flow.param.ParamFlowItem;
 import com.alibaba.csp.sentinel.slots.block.flow.param.ParamFlowRule;
 import com.alibaba.csp.sentinel.slots.block.flow.param.ParamFlowRuleManager;
 import com.atguigu.yygh.common.result.R;
-import com.atguigu.yygh.model.order.OrderInfo;
+import com.atguigu.yygh.orders.dto.BookingRequest;
+import com.atguigu.yygh.orders.dto.HisLockResponse;
 import com.atguigu.yygh.orders.service.OrderInfoService;
 import com.atguigu.yygh.vo.order.OrderCountQueryVo;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,11 +44,12 @@ public class OrderInfoController {
     }
 
 
-    //根据订单id查询订单详情
+    //根据订单id查询订单详情 (旧版，之后需要更新返回新版TOrder)
     @GetMapping("auth/getOrders/{orderId}")
     public R getOrders(@PathVariable Long orderId) {
-        OrderInfo orderInfo = orderInfoService.getOrderInfo(orderId);
-        return R.ok().data("orderInfo", orderInfo);
+        // OrderInfo orderInfo = orderInfoService.getOrderInfo(orderId);
+        // return R.ok().data("orderInfo", orderInfo);
+        return R.ok();
     }
 
 
@@ -55,6 +57,13 @@ public class OrderInfoController {
     public R submitOrder(@PathVariable("scheduleId") String scheduleId, @PathVariable("patientId") Long patientId) {
         Long orderId = orderInfoService.createOrder(scheduleId, patientId);
         return R.ok().data("orderId", orderId);
+    }
+
+    // 新版：高并发核心抢号接口
+    @PostMapping("/auth/grabTicket")
+    public R grabTicket(@RequestBody BookingRequest request) {
+        String orderId = orderInfoService.grabTicket(request);
+        return R.ok().message("占号成功，请在15分钟内支付").data("orderId", orderId);
     }
 
 

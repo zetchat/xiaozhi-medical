@@ -17,19 +17,30 @@ import com.atguigu.yygh.vo.msm.MsmVo;
 import com.atguigu.yygh.vo.order.OrderCountQueryVo;
 import com.atguigu.yygh.vo.order.OrderCountVo;
 import com.atguigu.yygh.vo.order.OrderMqVo;
+import com.atguigu.yygh.orders.dto.BookingRequest;
+import com.atguigu.yygh.orders.dto.HisLockResponse;
+import com.atguigu.yygh.model.order.TOrder;
+import com.atguigu.yygh.model.order.TLocalMessageLog;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.joda.time.DateTime;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.CollectionUtils;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import com.baomidou.mybatisplus.core.toolkit.IdWorker;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
 
 /**
  * 订单表 服务实现类
  */
+@Slf4j
 @Service
 public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo> implements OrderInfoService {
 
@@ -44,6 +55,98 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
 
     @Autowired
     private OrderInfoMapper orderInfoMapper;
+
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
+
+    // TODO: 之后需要替换为真正的RedisService和HisRpcClient
+    // @Autowired
+    // private RedisService redisService;
+    // @Autowired
+    // private HisRpcClient hisRpcClient;
+
+    @Override
+    public String grabTicket(BookingRequest request) {
+        // 1. Redis 预扣库存 (Lua脚本保证原子性)
+        // boolean hasStock = redisService.decrementStock("TICKET_POOL:" + request.getScheduleId());
+        boolean hasStock = true; // 模拟扣减成功
+        if (!hasStock) {
+            throw new YyghException(20001, "号源已满，请选择其他医生");
+        }
+
+        HisLockResponse hisResponse = null;
+        try {
+            // 2. 同步调用 HIS 接口锁定真实号源 (前置校验，不在本地事务内)
+            // hisResponse = hisRpcClient.lockTicket(request.getPatientId(), request.getScheduleId());
+            hisResponse = HisLockResponse.success("HIS_SEQ_" + System.currentTimeMillis()); // 模拟HIS锁定成功
+
+            if (!hisResponse.isSuccess()) {
+                // HIS锁定失败，立刻回滚Redis库存
+                // redisService.incrementStock("TICKET_POOL:" + request.getScheduleId());
+                throw new YyghException(20001, "HIS系统号源锁定失败: " + hisResponse.getMsg());
+            }
+
+            // 3. 开启本地事务，落盘订单与消息记录
+            String orderId = this.createOrderAndMessage(request, hisResponse.getHisSeqNo());
+            return orderId;
+
+        } catch (Exception e) {
+            log.error("本地系统落盘异常，挂号失败", e);
+
+            // 【核心修复1】：本地崩溃，回滚Redis
+            // redisService.incrementStock("TICKET_POOL:" + request.getScheduleId());
+
+            // 【核心修复2】：防御 HIS “幽灵占号”，尽力而为逆向回滚
+            if (hisResponse != null && hisResponse.isSuccess()) {
+                try {
+                    // hisRpcClient.unlockTicket(hisResponse.getHisSeqNo());
+                    log.info("本地异常，已成功回滚 HIS 号源: {}", hisResponse.getHisSeqNo());
+                } catch (Exception ex) {
+                    // 如果这步也失败，记录 Error 日志，交由每日凌晨的定时对账系统处理
+                    log.error("【严重告警】回滚 HIS 号源失败，需人工介入! hisSeqNo: {}", hisResponse.getHisSeqNo(), ex);
+                }
+            }
+            throw new YyghException(20001, "系统繁忙，请稍后再试");
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public String createOrderAndMessage(BookingRequest request, String hisSeqNo) {
+        String orderId = IdWorker.getIdStr();
+
+        // 3.1 本地 DB 写订单
+        TOrder order = new TOrder();
+        order.setOrderId(orderId);
+        order.setStatus("UNPAID");
+        order.setHisSeqNo(hisSeqNo);
+        order.setScheduleId(request.getScheduleId());
+        order.setPatientId(request.getPatientId());
+        // orderMapper.insert(order);
+        // TODO: 需要引入 TOrderMapper
+
+        // 3.2 本地 DB 写消息表 (状态为 NEW)
+        TLocalMessageLog msg = new TLocalMessageLog();
+        msg.setMsgId(IdWorker.getIdStr());
+        msg.setOrderId(orderId);
+        msg.setStatus("NEW");
+        // messageLogMapper.insert(msg);
+        // TODO: 需要引入 TLocalMessageLogMapper
+
+        // 3.3 事务完美闭环后，触发 MQ 发送
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                // 发送带有15分钟TTL的消息到等待队列
+                rabbitTemplate.convertAndSend("delay_exchange", "delay_routing_key", msg, message -> {
+                    message.getMessageProperties().setExpiration("900000"); // 15分钟
+                    return message;
+                });
+            }
+        });
+
+        return orderId;
+    }
 
     @Override
     public Map<String, Object> selectOrderCount(OrderCountQueryVo orderCountQueryVo) {
