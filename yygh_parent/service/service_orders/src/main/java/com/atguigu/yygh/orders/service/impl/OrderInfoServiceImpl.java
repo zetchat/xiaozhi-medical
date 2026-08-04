@@ -20,23 +20,14 @@ import com.atguigu.yygh.vo.msm.MsmVo;
 import com.atguigu.yygh.vo.order.OrderCountQueryVo;
 import com.atguigu.yygh.vo.order.OrderCountVo;
 import com.atguigu.yygh.vo.order.OrderMqVo;
-import com.atguigu.yygh.orders.mapper.TOrderMapper;
-import com.atguigu.yygh.orders.mapper.TLocalMessageLogMapper;
 import com.atguigu.yygh.orders.dto.BookingRequest;
-import com.atguigu.yygh.model.order.TOrder;
-import com.atguigu.yygh.model.order.TLocalMessageLog;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.joda.time.DateTime;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.CollectionUtils;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
@@ -61,13 +52,7 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
     private OrderInfoMapper orderInfoMapper;
 
     @Autowired
-    private RabbitTemplate rabbitTemplate;
-
-    @Autowired
-    private TOrderMapper tOrderMapper;
-
-    @Autowired
-    private TLocalMessageLogMapper messageLogMapper;
+    private OrderTicketTransactionService orderTicketTransactionService;
 
     @Autowired
     private HisRpcClient hisRpcClient;
@@ -96,7 +81,7 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
             }
 
             // 3. 开启本地事务，落盘订单与消息记录
-            String orderId = this.createOrderAndMessage(request, hisResponse.getHisSeqNo());
+            String orderId = orderTicketTransactionService.createOrderAndMessage(request, hisResponse.getHisSeqNo());
             return orderId;
 
         } catch (Exception e) {
@@ -117,42 +102,6 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
             }
             throw new YyghException(20001, "系统繁忙，请稍后再试");
         }
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public String createOrderAndMessage(BookingRequest request, String hisSeqNo) {
-        String orderId = IdWorker.getIdStr();
-
-        // 3.1 本地 DB 写订单
-        TOrder order = new TOrder();
-        order.setOrderId(orderId);
-        order.setStatus("UNPAID");
-        order.setHisSeqNo(hisSeqNo);
-        order.setScheduleId(request.getScheduleId());
-        order.setPatientId(request.getPatientId());
-        tOrderMapper.insert(order);
-
-        // 3.2 本地 DB 写消息表 (状态为 NEW)
-        TLocalMessageLog msg = new TLocalMessageLog();
-        msg.setMsgId(IdWorker.getIdStr());
-        msg.setOrderId(orderId);
-        msg.setStatus("NEW");
-        messageLogMapper.insert(msg);
-
-        // 3.3 事务完美闭环后，触发 MQ 发送
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                // 发送带有15分钟TTL的消息到等待队列
-                rabbitTemplate.convertAndSend("delay_exchange", "delay_routing_key", msg, message -> {
-                    message.getMessageProperties().setExpiration("900000"); // 15分钟
-                    return message;
-                });
-            }
-        });
-
-        return orderId;
     }
 
     @Override

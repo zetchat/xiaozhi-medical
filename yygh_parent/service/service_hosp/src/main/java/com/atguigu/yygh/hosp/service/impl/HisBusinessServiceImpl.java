@@ -41,6 +41,9 @@ public class HisBusinessServiceImpl implements HisBusinessService {
             return HisLockResponse.fail("医院系统号源不足");
         }
 
+        // 2.1 清理该号源上已释放的历史流水，避免 detail_id 唯一索引阻塞再次锁号
+        hisLockRecordMapper.deleteReleasedByDetailId(availableDetail.getDetailId());
+
         // 3. 乐观锁扣减该号源 (状态 AVAILABLE -> LOCKED)
         int updated = hisScheduleDetailMapper.lockScheduleDetail(availableDetail.getDetailId());
         if (updated == 0) {

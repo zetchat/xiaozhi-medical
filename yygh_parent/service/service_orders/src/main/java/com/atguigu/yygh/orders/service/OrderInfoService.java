@@ -19,9 +19,6 @@ public interface OrderInfoService extends IService<OrderInfo> {
     //平台下单 (新版 - 挂号核心抢号与本地落盘)
     String grabTicket(BookingRequest request);
 
-    //创建订单并发送消息 (供grabTicket内部调用)
-    String createOrderAndMessage(BookingRequest request, String hisSeqNo);
-
     //获取订单详情
     OrderInfo getOrderInfo(Long orderId);
 
