@@ -75,8 +75,6 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
             hisResponse = hisRpcClient.lockTicket(request.getPatientId(), request.getScheduleId());
 
             if (!hisResponse.isSuccess()) {
-                // HIS锁定失败，立刻回滚Redis库存
-                redisService.incrementStock("TICKET_POOL:" + request.getScheduleId());
                 throw new YyghException(20001, "HIS系统号源锁定失败: " + hisResponse.getMsg());
             }
 
@@ -99,6 +97,9 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
                     // 如果这步也失败，记录 Error 日志，交由每日凌晨的定时对账系统处理
                     log.error("【严重告警】回滚 HIS 号源失败，需人工介入! hisSeqNo: {}", hisResponse.getHisSeqNo(), ex);
                 }
+            }
+            if (e instanceof YyghException) {
+                throw (YyghException) e;
             }
             throw new YyghException(20001, "系统繁忙，请稍后再试");
         }
