@@ -23,8 +23,8 @@ public interface HisScheduleDetailMapper extends BaseMapper<HisScheduleDetail> {
     int unlockScheduleDetail(@Param("detailId") String detailId);
 
     /**
-     * 找出一个可用的号源
+     * 按就诊序号顺序找出一个可用号源
      */
-    @Select("SELECT * FROM his_schedule_detail WHERE schedule_id = #{scheduleId} AND status = 'AVAILABLE' LIMIT 1")
+    @Select("SELECT * FROM his_schedule_detail WHERE schedule_id = #{scheduleId} AND status = 'AVAILABLE' ORDER BY sequence_no ASC LIMIT 1")
     HisScheduleDetail findAvailableDetail(@Param("scheduleId") String scheduleId);
 }
