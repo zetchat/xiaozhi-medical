@@ -1,0 +1,133 @@
+{
+    // 使用 IntelliSense 了解相关属性。 
+    // 悬停以查看现有属性的描述。
+    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Current File",
+            "request": "launch",
+            "mainClass": "${file}"
+        },
+        {
+            "type": "java",
+            "name": "ManageApplication",
+            "request": "launch",
+            "mainClass": "com.atguigu.hospital.ManageApplication",
+            "projectName": "hospital-manage"
+        },
+        {
+            "type": "java",
+            "name": "HttpRequestHelper",
+            "request": "launch",
+            "mainClass": "com.atguigu.hospital.util.HttpRequestHelper",
+            "projectName": "hospital-manage"
+        },
+        {
+            "type": "java",
+            "name": "ServiceCmnApplication",
+            "request": "launch",
+            "mainClass": "com.atguigu.yygh.cmn.ServiceCmnApplication",
+            "projectName": "service_cmn"
+        },
+        {
+            "type": "java",
+            "name": "TestRead",
+            "request": "launch",
+            "mainClass": "com.atguigu.yygh.cmn.TestRead",
+            "projectName": "service_cmn"
+        },
+        {
+            "type": "java",
+            "name": "TestWrite",
+            "request": "launch",
+            "mainClass": "com.atguigu.yygh.cmn.TestWrite",
+            "projectName": "service_cmn"
+        },
+        {
+            "type": "java",
+            "name": "ApiGatewayApplication",
+            "request": "launch",
+            "mainClass": "com.atguigu.yygh.gateway.ApiGatewayApplication",
+            "projectName": "service_gateway"
+        },
+        {
+            "type": "java",
+            "name": "ServiceHospApplication",
+            "request": "launch",
+            "mainClass": "com.atguigu.yygh.hosp.ServiceHospApplication",
+            "projectName": "service_hosp"
+        },
+        {
+            "type": "java",
+            "name": "HttpRequestHelper(1)",
+            "request": "launch",
+            "mainClass": "com.atguigu.yygh.hosp.utils.HttpRequestHelper",
+            "projectName": "service_hosp"
+        },
+        {
+            "type": "java",
+            "name": "ServiceMsmApplication",
+            "request": "launch",
+            "mainClass": "com.atguigu.yygh.msm.ServiceMsmApplication",
+            "projectName": "service_msm"
+        },
+        {
+            "type": "java",
+            "name": "ServiceOrderApplication",
+            "request": "launch",
+            "mainClass": "com.atguigu.yygh.orders.ServiceOrderApplication",
+            "projectName": "service_orders"
+        },
+        {
+            "type": "java",
+            "name": "HttpRequestHelper(2)",
+            "request": "launch",
+            "mainClass": "com.atguigu.yygh.orders.utils.HttpRequestHelper",
+            "projectName": "service_orders"
+        },
+        {
+            "type": "java",
+            "name": "ServiceOssApplication",
+            "request": "launch",
+            "mainClass": "com.atguigu.yygh.oss.ServiceOssApplication",
+            "projectName": "service_oss"
+        },
+        {
+            "type": "java",
+            "name": "ServiceStaApplication",
+            "request": "launch",
+            "mainClass": "com.atguigu.yygh.statistics.ServiceStaApplication",
+            "projectName": "service_statistics"
+        },
+        {
+            "type": "java",
+            "name": "ServiceTaskApplication",
+            "request": "launch",
+            "mainClass": "com.atguigu.yygh.task.ServiceTaskApplication",
+            "projectName": "service_task"
+        },
+        {
+            "type": "java",
+            "name": "ServiceUserApplication",
+            "request": "launch",
+            "mainClass": "com.atguigu.yygh.user.ServiceUserApplication",
+            "projectName": "service_user"
+        },
+        {
+            "type": "java",
+            "name": "HttpClientUtils",
+            "request": "launch",
+            "mainClass": "com.atguigu.yygh.user.utils.HttpClientUtils",
+            "projectName": "service_user"
+        },
+        {
+            "type": "java",
+            "name": "JwtHelper",
+            "request": "launch",
+            "mainClass": "com.atguigu.yygh.common.utils.JwtHelper",
+            "projectName": "service_utils"
+        }
+    ]
+}
