@@ -2,6 +2,7 @@ package com.atguigu.yygh.hosp.service.impl;
 
 import com.atguigu.yygh.client_dto.HisLockResponse;
 import com.atguigu.yygh.common.result.Result;
+import com.atguigu.yygh.common.trace.TraceContext;
 import com.atguigu.yygh.hosp.mapper.HisLockRecordMapper;
 import com.atguigu.yygh.hosp.mapper.HisScheduleDetailMapper;
 import com.atguigu.yygh.hosp.service.HisBusinessService;
@@ -26,25 +27,32 @@ public class HisBusinessServiceImpl implements HisBusinessService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public HisLockResponse lockTicket(String patientId, String scheduleId) {
+        log.info("收到HIS锁号请求, traceId: {}, patientId: {}, scheduleId: {}",
+                TraceContext.getOrCreateTraceId(), patientId, scheduleId);
+
         // 1. 幂等性校验：同一患者在同一排班下若存在活跃锁号记录，则直接复用
         HisLockRecord existRecord = hisLockRecordMapper.findActiveByScheduleAndPatient(scheduleId, patientId);
         if (existRecord != null) {
-            log.info("触发锁号接口幂等，直接返回已存在的活跃凭证: {}", existRecord.getHisSeqNo());
+            log.info("触发HIS锁号幂等复用, patientId: {}, scheduleId: {}, hisSeqNo: {}",
+                    patientId, scheduleId, existRecord.getHisSeqNo());
             return HisLockResponse.success(existRecord.getHisSeqNo());
         }
 
         // 2. 寻找一个可用的具体号源 (如 3号)
         HisScheduleDetail availableDetail = hisScheduleDetailMapper.findAvailableDetail(scheduleId);
         if (availableDetail == null) {
-            log.warn("HIS系统排班无可用号源, scheduleId: {}", scheduleId);
+            log.warn("HIS系统排班无可用号源, patientId: {}, scheduleId: {}", patientId, scheduleId);
             return HisLockResponse.fail("医院系统号源不足");
         }
+        log.info("HIS找到可用号源明细, patientId: {}, scheduleId: {}, detailId: {}",
+                patientId, scheduleId, availableDetail.getDetailId());
 
         // 3. 乐观锁扣减该号源 (状态 AVAILABLE -> LOCKED)，由状态表保证当前资源唯一占用
         int updated = hisScheduleDetailMapper.lockScheduleDetail(availableDetail.getDetailId());
         if (updated == 0) {
             // 乐观锁冲突，说明这极短的时间内这个号被别人抢了
-            log.warn("HIS系统并发锁号冲突, detailId: {}", availableDetail.getDetailId());
+            log.warn("HIS系统并发锁号冲突, patientId: {}, scheduleId: {}, detailId: {}",
+                    patientId, scheduleId, availableDetail.getDetailId());
             return HisLockResponse.fail("当前就诊序号已被抢占，请重试");
         }
 
@@ -61,17 +69,22 @@ public class HisBusinessServiceImpl implements HisBusinessService {
             hisLockRecordMapper.insert(lockRecord);
         } catch (Exception e) {
             // 状态表已抢占成功，但流水落库失败时需要整体回滚事务
-            log.error("插入HIS锁号流水异常，事务即将回滚", e);
+            log.error("插入HIS锁号流水异常，事务即将回滚, patientId: {}, scheduleId: {}, detailId: {}, hisSeqNo: {}",
+                    patientId, scheduleId, availableDetail.getDetailId(), hisSeqNo, e);
             throw new RuntimeException("生成锁号凭证失败");
         }
 
-        log.info("HIS系统锁号成功，排班: {}, 就诊人: {}, 流水号: {}", scheduleId, patientId, hisSeqNo);
+        log.info("HIS系统锁号成功, patientId: {}, scheduleId: {}, detailId: {}, hisSeqNo: {}",
+                patientId, scheduleId, availableDetail.getDetailId(), hisSeqNo);
         return HisLockResponse.success(hisSeqNo);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Result unlockTicket(String hisSeqNo) {
+        log.info("收到HIS解锁请求, traceId: {}, hisSeqNo: {}",
+                TraceContext.getOrCreateTraceId(), hisSeqNo);
+
         // 1. 查询锁号记录
         HisLockRecord lockRecord = hisLockRecordMapper.selectById(hisSeqNo);
         if (lockRecord == null) {
@@ -99,7 +112,8 @@ public class HisBusinessServiceImpl implements HisBusinessService {
         // 4. 更新流水表状态
         hisLockRecordMapper.updateStatus(hisSeqNo, "RELEASED");
         
-        log.info("HIS系统解锁号源成功，流水号: {}", hisSeqNo);
+        log.info("HIS系统解锁号源成功, hisSeqNo: {}, scheduleId: {}, detailId: {}, patientId: {}",
+                hisSeqNo, lockRecord.getScheduleId(), lockRecord.getDetailId(), lockRecord.getPatientId());
         return Result.ok();
     }
 }

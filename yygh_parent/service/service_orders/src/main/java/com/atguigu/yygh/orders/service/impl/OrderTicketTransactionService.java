@@ -48,7 +48,7 @@ public class OrderTicketTransactionService {
             @Override
             public void afterCommit() {
                 rabbitTemplate.convertAndSend("delay_exchange", "delay_routing_key", msg, message -> {
-                    message.getMessageProperties().setExpiration("900000");
+                    message.getMessageProperties().setExpiration("60000");
                     return message;
                 });
             }

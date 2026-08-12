@@ -6,6 +6,7 @@ import com.atguigu.yygh.enums.OrderStatusEnum;
 import com.atguigu.yygh.hosp.client.HospitalFeignClient;
 import com.atguigu.yygh.model.order.OrderInfo;
 import com.atguigu.yygh.model.user.Patient;
+import com.atguigu.yygh.common.trace.TraceContext;
 import com.atguigu.yygh.client_dto.HisLockResponse;
 import com.atguigu.yygh.order.client.HisRpcClient;
 import com.atguigu.yygh.orders.mapper.OrderInfoMapper;
@@ -62,17 +63,28 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
 
     @Override
     public String grabTicket(BookingRequest request) {
+        log.info("开始执行抢号链路, traceId: {}, patientId: {}, scheduleId: {}",
+                TraceContext.getOrCreateTraceId(), request.getPatientId(), request.getScheduleId());
+
         // 1. Redis 预扣库存 (Lua脚本保证原子性)
         boolean hasStock = redisService.decrementStock("TICKET_POOL:" + request.getScheduleId());
+        log.info("Redis预扣库存完成, patientId: {}, scheduleId: {}, hasStock: {}",
+                request.getPatientId(), request.getScheduleId(), hasStock);
         // boolean hasStock = true; // 模拟扣减成功
         if (!hasStock) {
+            log.warn("Redis预扣库存失败, patientId: {}, scheduleId: {}", request.getPatientId(), request.getScheduleId());
             throw new YyghException(20001, "号源已满，请选择其他医生");
         }
 
         HisLockResponse hisResponse = null;
         try {
             // 2. 同步调用 HIS 接口锁定真实号源 (前置校验，不在本地事务内)
+            log.info("准备调用HIS锁号接口, patientId: {}, scheduleId: {}",
+                    request.getPatientId(), request.getScheduleId());
             hisResponse = hisRpcClient.lockTicket(request.getPatientId(), request.getScheduleId());
+            log.info("HIS锁号接口返回, patientId: {}, scheduleId: {}, success: {}, hisSeqNo: {}, msg: {}",
+                    request.getPatientId(), request.getScheduleId(),
+                    hisResponse.isSuccess(), hisResponse.getHisSeqNo(), hisResponse.getMsg());
 
             if (!hisResponse.isSuccess()) {
                 throw new YyghException(20001, "HIS系统号源锁定失败: " + hisResponse.getMsg());
@@ -80,22 +92,32 @@ public class OrderInfoServiceImpl extends ServiceImpl<OrderInfoMapper, OrderInfo
 
             // 3. 开启本地事务，落盘订单与消息记录
             String orderId = orderTicketTransactionService.createOrderAndMessage(request, hisResponse.getHisSeqNo());
+            log.info("抢号链路执行成功, orderId: {}, patientId: {}, scheduleId: {}, hisSeqNo: {}",
+                    orderId, request.getPatientId(), request.getScheduleId(), hisResponse.getHisSeqNo());
             return orderId;
 
         } catch (Exception e) {
-            log.error("本地系统落盘异常，挂号失败", e);
+            log.error("抢号链路执行异常, patientId: {}, scheduleId: {}, hisSeqNo: {}",
+                    request.getPatientId(), request.getScheduleId(),
+                    hisResponse == null ? null : hisResponse.getHisSeqNo(), e);
 
             // 【核心修复1】：本地崩溃，回滚Redis
             redisService.incrementStock("TICKET_POOL:" + request.getScheduleId());
+            log.info("Redis库存已回滚, patientId: {}, scheduleId: {}",
+                    request.getPatientId(), request.getScheduleId());
 
             // 【核心修复2】：防御 HIS “幽灵占号”，尽力而为逆向回滚
             if (hisResponse != null && hisResponse.isSuccess()) {
                 try {
+                    log.warn("触发HIS逆向解锁, patientId: {}, scheduleId: {}, hisSeqNo: {}",
+                            request.getPatientId(), request.getScheduleId(), hisResponse.getHisSeqNo());
                     hisRpcClient.unlockTicket(hisResponse.getHisSeqNo());
-                    log.info("本地异常，已成功回滚 HIS 号源: {}", hisResponse.getHisSeqNo());
+                    log.info("本地异常后已成功回滚HIS号源, patientId: {}, scheduleId: {}, hisSeqNo: {}",
+                            request.getPatientId(), request.getScheduleId(), hisResponse.getHisSeqNo());
                 } catch (Exception ex) {
                     // 如果这步也失败，记录 Error 日志，交由每日凌晨的定时对账系统处理
-                    log.error("【严重告警】回滚 HIS 号源失败，需人工介入! hisSeqNo: {}", hisResponse.getHisSeqNo(), ex);
+                    log.error("回滚HIS号源失败，需人工介入, patientId: {}, scheduleId: {}, hisSeqNo: {}",
+                            request.getPatientId(), request.getScheduleId(), hisResponse.getHisSeqNo(), ex);
                 }
             }
             if (e instanceof YyghException) {
