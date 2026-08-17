@@ -6,6 +6,8 @@ import com.atguigu.yygh.orders.dto.BookingRequest;
 import com.atguigu.yygh.orders.mapper.TLocalMessageLogMapper;
 import com.atguigu.yygh.orders.mapper.TOrderMapper;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -14,6 +16,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
+@Slf4j
 public class OrderTicketTransactionService {
 
     @Autowired
@@ -47,10 +50,12 @@ public class OrderTicketTransactionService {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
+                CorrelationData correlationData = new CorrelationData(msg.getMsgId());
                 rabbitTemplate.convertAndSend("delay_exchange", "delay_routing_key", msg, message -> {
                     message.getMessageProperties().setExpiration("60000");
                     return message;
-                });
+                }, correlationData);
+                log.info("延迟关单消息首次投递已提交给MQ. msgId: {}, orderId: {}", msg.getMsgId(), orderId);
             }
         });
 

@@ -3,6 +3,7 @@ package com.atguigu.yygh.orders.job;
 import com.atguigu.yygh.model.order.TLocalMessageLog;
 import com.atguigu.yygh.orders.mapper.TLocalMessageLogMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -43,13 +44,16 @@ public class MessageCompensationJob {
             }
 
             messageLogMapper.incrementRetryCount(msg.getMsgId());
+            int nextRetryCount = msg.getRetryCount() == null ? 1 : msg.getRetryCount() + 1;
             
             // 重新投递
+            CorrelationData correlationData = new CorrelationData(msg.getMsgId());
             rabbitTemplate.convertAndSend("delay_exchange", "delay_routing_key", msg, message -> {
                 message.getMessageProperties().setExpiration("900000"); // 15分钟
                 return message;
-            });
-            log.info("定时任务补偿发送消息成功: {}", msg.getMsgId());
+            }, correlationData);
+            log.info("定时任务补偿发送消息成功. msgId: {}, orderId: {}, retryCount: {}",
+                    msg.getMsgId(), msg.getOrderId(), nextRetryCount);
         }
     }
 }

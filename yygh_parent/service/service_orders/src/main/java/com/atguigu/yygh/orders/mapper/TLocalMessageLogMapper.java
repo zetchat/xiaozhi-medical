@@ -13,6 +13,11 @@ public interface TLocalMessageLogMapper extends BaseMapper<TLocalMessageLog> {
     @Update("UPDATE t_local_message_log SET status = #{status} WHERE msg_id = #{msgId}")
     void updateStatus(@Param("msgId") String msgId, @Param("status") String status);
 
+    @Update("UPDATE t_local_message_log SET status = #{targetStatus} WHERE msg_id = #{msgId} AND status = #{sourceStatus}")
+    int updateStatusIfCurrent(@Param("msgId") String msgId,
+                              @Param("sourceStatus") String sourceStatus,
+                              @Param("targetStatus") String targetStatus);
+
     @Select("SELECT * FROM t_local_message_log WHERE status = 'NEW' AND create_time <= DATE_SUB(NOW(), INTERVAL 1 MINUTE)")
     List<TLocalMessageLog> findStagnantMessages();
 
