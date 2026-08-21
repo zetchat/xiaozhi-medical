@@ -84,7 +84,7 @@ def print_jmeter_command(args, schedule_id: str) -> None:
 
 def main():
     parser = argparse.ArgumentParser(description="Prepare a fresh test schedule for pressure testing.")
-    parser.add_argument("--base-url", required=True, help="e.g. http://192.168.1.10:8200")
+    parser.add_argument("--base-url", required=True, help="e.g. http://169.254.30.44:8210")
     parser.add_argument("--doctor-id", default="doc_test_001")
     parser.add_argument("--dept-id", default="dept_test_001")
     parser.add_argument("--hospital-id", default="hospital_test_001")

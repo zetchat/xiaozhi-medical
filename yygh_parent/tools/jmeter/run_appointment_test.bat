@@ -9,7 +9,7 @@ if "%~4"=="" (
     echo   run_appointment_test.bat ^<JMeterBin^> ^<TestPlan^> ^<BaseUrl^> ^<ScheduleId^> [Threads] [RampUp] [Loops]
     echo.
     echo 示例:
-    echo   run_appointment_test.bat "C:\apache-jmeter-5.6.3\bin\jmeter.bat" "C:\jmeter\appointment-create.jmx" "http://192.168.1.100:8200" "1912345678901234567" 200 20 1
+    echo   run_appointment_test.bat "D:\Develop\apache-jmeter-5.6.3\bin\jmeter.bat" "D:\Develop\apache-jmeter-5.6.3\test-plan\appointment_pressure_test.jmx" "http://169.254.30.44:8210" "1912345678901234567" 200 20 1
     exit /b 1
 )
 
