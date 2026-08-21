@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, timedelta
 from urllib import request, error
@@ -43,6 +44,44 @@ def build_payload(args) -> dict:
     }
 
 
+def write_properties(output_file: str, base_url: str, payload: dict, data: dict) -> None:
+    parent = os.path.dirname(output_file)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+
+    lines = [
+        f"baseUrl={base_url}",
+        f"scheduleId={data.get('scheduleId', '')}",
+        f"status={data.get('status', '')}",
+        f"totalCount={data.get('totalCount', '')}",
+        f"availableCount={data.get('availableCount', '')}",
+        f"doctorId={payload.get('doctorId', '')}",
+        f"deptId={payload.get('deptId', '')}",
+        f"hospitalId={payload.get('hospitalId', '')}",
+        f"visitDate={payload.get('visitDate', '')}",
+        f"timePeriod={payload.get('timePeriod', '')}",
+    ]
+
+    with open(output_file, "w", encoding="utf-8") as fp:
+        fp.write("\n".join(lines) + "\n")
+
+
+def print_jmeter_command(args, schedule_id: str) -> None:
+    if not args.jmeter_bin or not args.test_plan:
+        return
+
+    command = (
+        f"\"{args.runner}\" "
+        f"\"{args.jmeter_bin}\" "
+        f"\"{args.test_plan}\" "
+        f"\"{args.base_url.rstrip('/')}\" "
+        f"\"{schedule_id}\" "
+        f"{args.threads} {args.ramp_up} {args.loops}"
+    )
+    print("\n=== JMeter Command Example ===")
+    print(command)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Prepare a fresh test schedule for pressure testing.")
     parser.add_argument("--base-url", required=True, help="e.g. http://192.168.1.10:8200")
@@ -55,6 +94,21 @@ def main():
     parser.add_argument("--close-after-hours", type=int, default=12)
     parser.add_argument("--allow-cancel", action="store_true", default=True)
     parser.add_argument("--timeout", type=int, default=10)
+    parser.add_argument(
+        "--output-file",
+        default="",
+        help="optional .properties output path for JMeter reuse",
+    )
+    parser.add_argument(
+        "--runner",
+        default="run_appointment_test.bat",
+        help="runner script path shown in command example",
+    )
+    parser.add_argument("--jmeter-bin", default="", help="optional JMeter bin path for command example")
+    parser.add_argument("--test-plan", default="", help="optional .jmx path for command example")
+    parser.add_argument("--threads", type=int, default=100, help="shown in JMeter command example")
+    parser.add_argument("--ramp-up", type=int, default=10, help="shown in JMeter command example")
+    parser.add_argument("--loops", type=int, default=1, help="shown in JMeter command example")
 
     args = parser.parse_args()
     payload = build_payload(args)
@@ -86,6 +140,12 @@ def main():
     print(f"availableCount={data.get('availableCount')}")
     print(f"visitDate={data.get('visitDate')}")
     print(f"timePeriod={data.get('timePeriod')}")
+
+    if args.output_file:
+        write_properties(args.output_file, args.base_url.rstrip("/"), payload, data)
+        print(f"outputFile={args.output_file}")
+
+    print_jmeter_command(args, schedule_id)
 
 
 if __name__ == "__main__":

@@ -6,6 +6,13 @@
     "configurations": [
         {
             "type": "java",
+            "name": "AppointmentCoreApplication",
+            "request": "launch",
+            "mainClass": "com.atguigu.yygh.appointment.AppointmentCoreApplication",
+            "projectName": "service_appointment_core"
+        },
+        {
+            "type": "java",
             "name": "Current File",
             "request": "launch",
             "mainClass": "${file}"
