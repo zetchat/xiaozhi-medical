@@ -36,7 +36,7 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class AppointmentAppServiceImpl implements AppointmentAppService {
 
-    private static final int DEFAULT_HOLD_MINUTES = 15;
+    private static final int DEFAULT_HOLD_MINUTES = 1;
 
     private final TokenGateService tokenGateService;
     private final SlotAllocationService slotAllocationService;
