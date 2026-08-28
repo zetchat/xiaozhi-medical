@@ -13,6 +13,7 @@ import com.atguigu.yygh.appointment.domain.token.TokenGateService;
 import com.atguigu.yygh.appointment.infrastructure.mapper.ApScheduleMapper;
 import com.atguigu.yygh.appointment.infrastructure.mapper.ApScheduleEventMapper;
 import com.atguigu.yygh.appointment.infrastructure.mapper.ApSlotMapper;
+import com.atguigu.yygh.common.trace.TraceContext;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +33,9 @@ public class ScheduleAdminAppServiceImpl implements ScheduleAdminAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ScheduleResponse createSchedule(CreateScheduleCommand command) {
+        log.info("开始创建排班, traceId: {}, doctorId: {}, deptId: {}, hospitalId: {}, visitDate: {}, timePeriod: {}",
+                TraceContext.getOrCreateTraceId(), command.getDoctorId(), command.getDeptId(),
+                command.getHospitalId(), command.getVisitDate(), command.getTimePeriod());
         ApSchedule schedule = new ApSchedule();
         schedule.setScheduleId(IdWorker.getIdStr());
         schedule.setDoctorId(command.getDoctorId());
@@ -50,6 +54,7 @@ public class ScheduleAdminAppServiceImpl implements ScheduleAdminAppService {
         schedule.setVersion(0);
         apScheduleMapper.insert(schedule);
         recordScheduleEvent(schedule.getScheduleId(), "CREATE", null, ScheduleStatus.DRAFT.name(), "创建排班");
+        log.info("创建排班成功, traceId: {}, scheduleId: {}", TraceContext.getOrCreateTraceId(), schedule.getScheduleId());
         return toResponse(schedule);
     }
 
@@ -77,7 +82,8 @@ public class ScheduleAdminAppServiceImpl implements ScheduleAdminAppService {
         apScheduleMapper.initCounts(scheduleId, schedule.getTotalCount());
 
         ApSchedule refreshed = requireSchedule(scheduleId);
-        log.info("排班号位生成完成, scheduleId={}, totalCount={}", scheduleId, refreshed.getTotalCount());
+        log.info("排班号位生成完成, traceId: {}, scheduleId: {}, totalCount: {}",
+                TraceContext.getOrCreateTraceId(), scheduleId, refreshed.getTotalCount());
         recordScheduleEvent(scheduleId, "GENERATE_SLOTS", ScheduleStatus.DRAFT.name(), ScheduleStatus.DRAFT.name(), "批量生成号位");
         return toResponse(refreshed);
     }
@@ -105,7 +111,8 @@ public class ScheduleAdminAppServiceImpl implements ScheduleAdminAppService {
 
         tokenGateService.initScheduleToken(scheduleId, schedule.getAvailableCount());
         ApSchedule refreshed = requireSchedule(scheduleId);
-        log.info("排班发布成功, scheduleId={}, availableCount={}", scheduleId, refreshed.getAvailableCount());
+        log.info("排班发布成功, traceId: {}, scheduleId: {}, availableCount: {}",
+                TraceContext.getOrCreateTraceId(), scheduleId, refreshed.getAvailableCount());
         recordScheduleEvent(scheduleId, "PUBLISH", ScheduleStatus.DRAFT.name(), ScheduleStatus.OPEN.name(), "发布排班");
         return toResponse(refreshed);
     }
@@ -127,7 +134,9 @@ public class ScheduleAdminAppServiceImpl implements ScheduleAdminAppService {
         }
         tokenGateService.initScheduleToken(scheduleId, 0);
         recordScheduleEvent(scheduleId, "SUSPEND", ScheduleStatus.OPEN.name(), ScheduleStatus.SUSPENDED.name(), "暂停排班");
-        return toResponse(requireSchedule(scheduleId));
+        ApSchedule refreshed = requireSchedule(scheduleId);
+        log.info("排班暂停成功, traceId: {}, scheduleId: {}", TraceContext.getOrCreateTraceId(), scheduleId);
+        return toResponse(refreshed);
     }
 
     @Override
@@ -148,6 +157,8 @@ public class ScheduleAdminAppServiceImpl implements ScheduleAdminAppService {
         ApSchedule refreshed = requireSchedule(scheduleId);
         tokenGateService.initScheduleToken(scheduleId, refreshed.getAvailableCount());
         recordScheduleEvent(scheduleId, "RESUME", ScheduleStatus.SUSPENDED.name(), ScheduleStatus.OPEN.name(), "恢复排班");
+        log.info("排班恢复成功, traceId: {}, scheduleId: {}, availableCount: {}",
+                TraceContext.getOrCreateTraceId(), scheduleId, refreshed.getAvailableCount());
         return toResponse(refreshed);
     }
 
@@ -177,7 +188,9 @@ public class ScheduleAdminAppServiceImpl implements ScheduleAdminAppService {
         }
         tokenGateService.initScheduleToken(scheduleId, 0);
         recordScheduleEvent(scheduleId, "CANCEL", currentStatus, ScheduleStatus.CANCELLED.name(), "停诊关闭排班");
-        return toResponse(requireSchedule(scheduleId));
+        ApSchedule refreshed = requireSchedule(scheduleId);
+        log.info("排班停诊成功, traceId: {}, scheduleId: {}", TraceContext.getOrCreateTraceId(), scheduleId);
+        return toResponse(refreshed);
     }
 
     @Override

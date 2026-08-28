@@ -17,6 +17,7 @@ import com.atguigu.yygh.appointment.infrastructure.mapper.ApOrderMapper;
 import com.atguigu.yygh.appointment.infrastructure.mapper.ApOutboxMessageMapper;
 import com.atguigu.yygh.appointment.mq.OutboxMessagePublisher;
 import com.atguigu.yygh.appointment.mq.TimeoutOrderMessage;
+import com.atguigu.yygh.common.trace.TraceContext;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -48,18 +49,23 @@ public class AppointmentAppServiceImpl implements AppointmentAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AppointmentCreateResponse createAppointment(AppointmentCreateCommand command) {
-        log.info("开始预约创建, requestNo={}, patientId={}, scheduleId={}",
-                command.getRequestNo(), command.getPatientId(), command.getScheduleId());
+        log.info("开始预约创建, traceId: {}, requestNo: {}, patientId: {}, scheduleId: {}",
+                TraceContext.getOrCreateTraceId(), command.getRequestNo(), command.getPatientId(), command.getScheduleId());
 
         ApHold activeHold = apHoldMapper.findActiveByScheduleAndPatient(
                 command.getScheduleId(), command.getPatientId()
         );
         if (activeHold != null) {
+            log.warn("预约创建命中有效预占单, traceId: {}, requestNo: {}, patientId: {}, scheduleId: {}, holdId: {}",
+                    TraceContext.getOrCreateTraceId(), command.getRequestNo(), command.getPatientId(),
+                    command.getScheduleId(), activeHold.getHoldId());
             throw new AppointmentBizException("当前患者在该排班下已存在有效预约");
         }
 
         boolean acquired = tokenGateService.tryAcquireScheduleToken(command.getScheduleId());
         if (!acquired) {
+            log.warn("预约创建令牌获取失败, traceId: {}, requestNo: {}, patientId: {}, scheduleId: {}",
+                    TraceContext.getOrCreateTraceId(), command.getRequestNo(), command.getPatientId(), command.getScheduleId());
             throw new AppointmentBizException("号源已满");
         }
 
@@ -82,8 +88,8 @@ public class AppointmentAppServiceImpl implements AppointmentAppService {
             apOutboxMessageMapper.insert(outboxMessage);
             outboxMessagePublisher.registerTimeoutPublish(outboxMessage, expireTime);
 
-            log.info("预约创建成功, orderId={}, holdId={}, slotId={}, sequenceNo={}",
-                    orderId, holdId, allocatedSlot.getSlotId(), allocatedSlot.getSequenceNo());
+            log.info("预约创建成功, traceId: {}, orderId: {}, holdId: {}, slotId: {}, sequenceNo: {}",
+                    TraceContext.getOrCreateTraceId(), orderId, holdId, allocatedSlot.getSlotId(), allocatedSlot.getSequenceNo());
 
             return new AppointmentCreateResponse(
                     orderId,
@@ -95,9 +101,13 @@ public class AppointmentAppServiceImpl implements AppointmentAppService {
             );
         } catch (DuplicateKeyException ex) {
             tokenGateService.releaseScheduleToken(command.getScheduleId());
+            log.warn("预约创建触发幂等冲突, traceId: {}, requestNo: {}, patientId: {}, scheduleId: {}",
+                    TraceContext.getOrCreateTraceId(), command.getRequestNo(), command.getPatientId(), command.getScheduleId(), ex);
             throw new AppointmentBizException("请求重复或患者已存在有效预约");
         } catch (Exception ex) {
             tokenGateService.releaseScheduleToken(command.getScheduleId());
+            log.error("预约创建异常, traceId: {}, requestNo: {}, patientId: {}, scheduleId: {}",
+                    TraceContext.getOrCreateTraceId(), command.getRequestNo(), command.getPatientId(), command.getScheduleId(), ex);
             throw ex;
         }
     }
@@ -172,6 +182,7 @@ public class AppointmentAppServiceImpl implements AppointmentAppService {
         payload.setPatientId(command.getPatientId());
         payload.setRequestNo(command.getRequestNo());
         payload.setExpireTime(expireTime);
+        payload.setTraceId(TraceContext.getOrCreateTraceId());
         return payload;
     }
 }

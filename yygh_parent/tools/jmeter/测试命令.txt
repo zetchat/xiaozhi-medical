@@ -1,8 +1,18 @@
+python d:\Develop\code\xiaozhi-medical\yygh_parent\tools\prepare_test_schedule.py `
+ --base-url "http://169.254.30.44:8210" `
+ --doctor-id "doctor002"`
+ --total-count 10 `
+ --days-after 0 
+
+
+
 powershell -ExecutionPolicy Bypass -File "d:\Develop\code\xiaozhi-medical\yygh_parent\tools\jmeter\run_appointment_test.ps1" `
   -JMeterBin "D:\Develop\apache-jmeter-5.6.3\bin\jmeter.bat" `
   -TestPlan "D:\Develop\apache-jmeter-5.6.3\test-plan\appointment_pressure_test.jmx" `
-  -BaseUrl "http://169.254.30.44:8210" `
-  -ScheduleId "2091078624504659969" `
+  -Protocol "http" `
+  -ServerHost "169.254.30.44" `
+  -Port 8210 `
+  -ScheduleId "" `
   -Threads 100 `
   -RampUp 1 `
   -Loops 1 `

@@ -15,6 +15,7 @@ import com.atguigu.yygh.appointment.infrastructure.mapper.ApOrderMapper;
 import com.atguigu.yygh.appointment.infrastructure.mapper.ApPaymentRecordMapper;
 import com.atguigu.yygh.appointment.infrastructure.mapper.ApScheduleMapper;
 import com.atguigu.yygh.appointment.infrastructure.mapper.ApSlotMapper;
+import com.atguigu.yygh.common.trace.TraceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -36,11 +37,13 @@ public class OrderCancelAppServiceImpl implements OrderCancelAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public OrderDetailResponse cancelOrder(String orderId) {
+        log.info("开始取消订单, traceId: {}, orderId: {}", TraceContext.getOrCreateTraceId(), orderId);
         ApOrder order = apOrderMapper.selectById(orderId);
         if (order == null) {
             throw new AppointmentBizException("订单不存在");
         }
         if (OrderStatus.CANCELLED.name().equals(order.getStatus())) {
+            log.info("取消订单命中已取消状态, traceId: {}, orderId: {}", TraceContext.getOrCreateTraceId(), orderId);
             return orderQueryAppService.getOrderDetail(orderId);
         }
         if (OrderStatus.PAID.name().equals(order.getStatus())) {
@@ -91,7 +94,8 @@ public class OrderCancelAppServiceImpl implements OrderCancelAppService {
         }
 
         tokenGateService.releaseScheduleToken(hold.getScheduleId());
-        log.info("主动取消订单成功, orderId={}, holdId={}", orderId, hold.getHoldId());
+        log.info("主动取消订单成功, traceId: {}, orderId: {}, holdId: {}",
+                TraceContext.getOrCreateTraceId(), orderId, hold.getHoldId());
         return orderQueryAppService.getOrderDetail(orderId);
     }
 }

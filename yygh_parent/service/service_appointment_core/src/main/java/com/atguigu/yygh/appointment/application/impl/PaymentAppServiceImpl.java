@@ -14,6 +14,7 @@ import com.atguigu.yygh.appointment.infrastructure.mapper.ApOrderMapper;
 import com.atguigu.yygh.appointment.infrastructure.mapper.ApPaymentRecordMapper;
 import com.atguigu.yygh.appointment.infrastructure.mapper.ApScheduleMapper;
 import com.atguigu.yygh.appointment.infrastructure.mapper.ApSlotMapper;
+import com.atguigu.yygh.common.trace.TraceContext;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +37,9 @@ public class PaymentAppServiceImpl implements PaymentAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public PaymentConfirmResponse confirmPayment(PaymentConfirmCommand command) {
+        log.info("开始支付确认, traceId: {}, orderId: {}, channel: {}, tradeNo: {}",
+                TraceContext.getOrCreateTraceId(), command.getOrderId(), command.getPayChannel(), command.getChannelTradeNo());
+
         ApPaymentRecord existedRecord = apPaymentRecordMapper.findByChannelTradeNo(
                 command.getPayChannel(), command.getChannelTradeNo()
         );
@@ -45,6 +49,9 @@ public class PaymentAppServiceImpl implements PaymentAppService {
                 throw new AppointmentBizException("支付流水存在，但订单不存在");
             }
             ApHold existedHold = apHoldMapper.selectById(existedOrder.getHoldId());
+            log.info("支付确认命中幂等流水, traceId: {}, orderId: {}, holdId: {}, channel: {}, tradeNo: {}",
+                    TraceContext.getOrCreateTraceId(), existedOrder.getOrderId(), existedOrder.getHoldId(),
+                    command.getPayChannel(), command.getChannelTradeNo());
             return new PaymentConfirmResponse(
                     existedOrder.getOrderId(),
                     existedOrder.getHoldId(),
@@ -63,6 +70,8 @@ public class PaymentAppServiceImpl implements PaymentAppService {
         }
         if (OrderStatus.PAID.name().equals(order.getStatus())) {
             ApHold paidHold = apHoldMapper.selectById(order.getHoldId());
+            log.info("支付确认命中已支付订单, traceId: {}, orderId: {}, holdId: {}",
+                    TraceContext.getOrCreateTraceId(), order.getOrderId(), order.getHoldId());
             return new PaymentConfirmResponse(
                     order.getOrderId(),
                     order.getHoldId(),
@@ -111,8 +120,9 @@ public class PaymentAppServiceImpl implements PaymentAppService {
         paymentRecord.setPaidAt(payTime);
         apPaymentRecordMapper.insert(paymentRecord);
 
-        log.info("支付确认成功, orderId={}, holdId={}, channel={}, tradeNo={}",
-                order.getOrderId(), hold.getHoldId(), command.getPayChannel(), command.getChannelTradeNo());
+        log.info("支付确认成功, traceId: {}, orderId: {}, holdId: {}, channel: {}, tradeNo: {}",
+                TraceContext.getOrCreateTraceId(), order.getOrderId(), hold.getHoldId(),
+                command.getPayChannel(), command.getChannelTradeNo());
 
         return new PaymentConfirmResponse(
                 order.getOrderId(),

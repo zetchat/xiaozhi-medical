@@ -6,7 +6,13 @@ param(
     [string]$TestPlan,
 
     [Parameter(Mandatory = $true)]
-    [string]$BaseUrl,
+    [string]$Protocol,
+
+    [Parameter(Mandatory = $true)]
+    [string]$ServerHost,
+
+    [Parameter(Mandatory = $true)]
+    [int]$Port,
 
     [Parameter(Mandatory = $true)]
     [string]$ScheduleId,
@@ -44,7 +50,11 @@ $args = @(
     "-t", $TestPlan,
     "-l", $resultFile,
     "-j", $logFile,
-    "-JbaseUrl=$BaseUrl",
+
+    "-Jprotocol=$Protocol",
+    "-Jhost=$ServerHost",
+    "-Jport=$Port",
+
     "-JscheduleId=$ScheduleId",
     "-Jthreads=$Threads",
     "-JrampUp=$RampUp",
@@ -58,7 +68,11 @@ if ($GenerateReport) {
 Write-Host "开始执行 JMeter 压测..."
 Write-Host "JMeterBin : $JMeterBin"
 Write-Host "TestPlan  : $TestPlan"
-Write-Host "BaseUrl   : $BaseUrl"
+
+Write-Host "Protocol  : $Protocol"
+Write-Host "Host      : $ServerHost"
+Write-Host "Port      : $Port"
+
 Write-Host "ScheduleId: $ScheduleId"
 Write-Host "Threads   : $Threads"
 Write-Host "RampUp    : $RampUp"

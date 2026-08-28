@@ -12,6 +12,7 @@ import com.atguigu.yygh.appointment.infrastructure.mapper.ApOrderMapper;
 import com.atguigu.yygh.appointment.infrastructure.mapper.ApOutboxMessageMapper;
 import com.atguigu.yygh.appointment.infrastructure.mapper.ApScheduleMapper;
 import com.atguigu.yygh.appointment.infrastructure.mapper.ApSlotMapper;
+import com.atguigu.yygh.common.trace.TraceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,17 +33,20 @@ public class OrderTimeoutServiceImpl implements OrderTimeoutService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void closeIfExpired(String orderId, String holdId, String msgId) {
+        log.info("开始处理超时关单, traceId: {}, msgId: {}, orderId: {}, holdId: {}",
+                TraceContext.getOrCreateTraceId(), msgId, orderId, holdId);
         ApOrder order = apOrderMapper.selectById(orderId);
         if (order == null) {
             markConsumed(msgId);
-            log.warn("超时消息对应订单不存在，忽略处理. msgId={}, orderId={}", msgId, orderId);
+            log.warn("超时消息对应订单不存在，忽略处理, traceId: {}, msgId: {}, orderId: {}",
+                    TraceContext.getOrCreateTraceId(), msgId, orderId);
             return;
         }
 
         if (!OrderStatus.UNPAID.name().equals(order.getStatus())) {
             markConsumed(msgId);
-            log.info("订单状态无需超时关闭，忽略处理. msgId={}, orderId={}, currentStatus={}",
-                    msgId, orderId, order.getStatus());
+            log.info("订单状态无需超时关闭，忽略处理, traceId: {}, msgId: {}, orderId: {}, currentStatus: {}",
+                    TraceContext.getOrCreateTraceId(), msgId, orderId, order.getStatus());
             return;
         }
 
@@ -54,7 +58,8 @@ public class OrderTimeoutServiceImpl implements OrderTimeoutService {
         );
         if (orderUpdated == 0) {
             markConsumed(msgId);
-            log.warn("订单已被其他流程处理，跳过重复关单. msgId={}, orderId={}", msgId, orderId);
+            log.warn("订单已被其他流程处理，跳过重复关单, traceId: {}, msgId: {}, orderId: {}",
+                    TraceContext.getOrCreateTraceId(), msgId, orderId);
             return;
         }
 
@@ -92,7 +97,8 @@ public class OrderTimeoutServiceImpl implements OrderTimeoutService {
         }
 
         markConsumed(msgId);
-        log.info("超时关单完成, msgId={}, orderId={}, holdId={}", msgId, orderId, hold.getHoldId());
+        log.info("超时关单完成, traceId: {}, msgId: {}, orderId: {}, holdId: {}",
+                TraceContext.getOrCreateTraceId(), msgId, orderId, hold.getHoldId());
     }
 
     private void markConsumed(String msgId) {

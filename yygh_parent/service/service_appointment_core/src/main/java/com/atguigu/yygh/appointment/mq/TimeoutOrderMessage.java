@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 public class TimeoutOrderMessage {
 
     private String msgId;
+    private String traceId;
     private String orderId;
     private String holdId;
     private String scheduleId;
