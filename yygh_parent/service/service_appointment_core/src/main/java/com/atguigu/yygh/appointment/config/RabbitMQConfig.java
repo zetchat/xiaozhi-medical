@@ -22,6 +22,10 @@ public class RabbitMQConfig {
     public static final String DLX_ROUTING_KEY = "ap_dead_letter_routing_key";
     public static final String DLQ_QUEUE = "ap_dead_letter_queue";
 
+    public static final String PROJECTION_EXCHANGE = "ap_projection_exchange";
+    public static final String PROJECTION_ROUTING_KEY = "ap_projection_routing_key";
+    public static final String PROJECTION_QUEUE = "ap_projection_queue";
+
     @Bean
     public Queue appointmentDelayQueue() {
         Map<String, Object> args = new HashMap<>(2);
@@ -54,5 +58,21 @@ public class RabbitMQConfig {
     public Binding appointmentDeadLetterBinding(Queue appointmentDeadLetterQueue,
                                                 DirectExchange appointmentDeadLetterExchange) {
         return BindingBuilder.bind(appointmentDeadLetterQueue).to(appointmentDeadLetterExchange).with(DLX_ROUTING_KEY);
+    }
+
+    @Bean
+    public Queue appointmentProjectionQueue() {
+        return QueueBuilder.durable(PROJECTION_QUEUE).build();
+    }
+
+    @Bean
+    public DirectExchange appointmentProjectionExchange() {
+        return new DirectExchange(PROJECTION_EXCHANGE);
+    }
+
+    @Bean
+    public Binding appointmentProjectionBinding(Queue appointmentProjectionQueue,
+                                                DirectExchange appointmentProjectionExchange) {
+        return BindingBuilder.bind(appointmentProjectionQueue).to(appointmentProjectionExchange).with(PROJECTION_ROUTING_KEY);
     }
 }

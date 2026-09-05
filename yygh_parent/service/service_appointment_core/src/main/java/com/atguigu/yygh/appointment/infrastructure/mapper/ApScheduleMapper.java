@@ -68,6 +68,21 @@ public interface ApScheduleMapper extends BaseMapper<ApSchedule> {
     int initCounts(@Param("scheduleId") String scheduleId,
                    @Param("availableCount") Integer availableCount);
 
+    @Update("""
+        UPDATE ap_schedule
+        SET total_count = #{totalCount},
+            available_count = #{availableCount},
+            held_count = #{heldCount},
+            confirmed_count = #{confirmedCount},
+            updated_at = NOW(3)
+        WHERE schedule_id = #{scheduleId}
+        """)
+    int syncProjectionCounters(@Param("scheduleId") String scheduleId,
+                               @Param("totalCount") Integer totalCount,
+                               @Param("availableCount") Integer availableCount,
+                               @Param("heldCount") Integer heldCount,
+                               @Param("confirmedCount") Integer confirmedCount);
+
     @Select("""
         SELECT *
         FROM ap_schedule

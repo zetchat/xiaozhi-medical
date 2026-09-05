@@ -155,10 +155,11 @@ public class ScheduleAdminAppServiceImpl implements ScheduleAdminAppService {
             throw new AppointmentBizException("排班恢复失败");
         }
         ApSchedule refreshed = requireSchedule(scheduleId);
-        tokenGateService.initScheduleToken(scheduleId, refreshed.getAvailableCount());
+        int availableCount = apSlotMapper.countByScheduleAndStatus(scheduleId, SlotStatus.AVAILABLE.name());
+        tokenGateService.initScheduleToken(scheduleId, availableCount);
         recordScheduleEvent(scheduleId, "RESUME", ScheduleStatus.SUSPENDED.name(), ScheduleStatus.OPEN.name(), "恢复排班");
         log.info("排班恢复成功, traceId: {}, scheduleId: {}, availableCount: {}",
-                TraceContext.getOrCreateTraceId(), scheduleId, refreshed.getAvailableCount());
+                TraceContext.getOrCreateTraceId(), scheduleId, availableCount);
         return toResponse(refreshed);
     }
 

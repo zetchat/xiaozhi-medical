@@ -13,8 +13,8 @@ import com.atguigu.yygh.appointment.domain.token.TokenGateService;
 import com.atguigu.yygh.appointment.infrastructure.mapper.ApHoldMapper;
 import com.atguigu.yygh.appointment.infrastructure.mapper.ApOrderMapper;
 import com.atguigu.yygh.appointment.infrastructure.mapper.ApPaymentRecordMapper;
-import com.atguigu.yygh.appointment.infrastructure.mapper.ApScheduleMapper;
 import com.atguigu.yygh.appointment.infrastructure.mapper.ApSlotMapper;
+import com.atguigu.yygh.appointment.mq.ScheduleCounterRefreshOutboxService;
 import com.atguigu.yygh.common.trace.TraceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,10 +29,10 @@ public class OrderCancelAppServiceImpl implements OrderCancelAppService {
     private final ApOrderMapper apOrderMapper;
     private final ApHoldMapper apHoldMapper;
     private final ApSlotMapper apSlotMapper;
-    private final ApScheduleMapper apScheduleMapper;
     private final ApPaymentRecordMapper apPaymentRecordMapper;
     private final TokenGateService tokenGateService;
     private final OrderQueryAppService orderQueryAppService;
+    private final ScheduleCounterRefreshOutboxService scheduleCounterRefreshOutboxService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -88,12 +88,8 @@ public class OrderCancelAppServiceImpl implements OrderCancelAppService {
             throw new AppointmentBizException("预占单释放失败");
         }
 
-        int scheduleUpdated = apScheduleMapper.releaseFromHold(hold.getScheduleId());
-        if (scheduleUpdated == 0) {
-            throw new AppointmentBizException("排班聚合回滚失败");
-        }
-
         tokenGateService.releaseScheduleToken(hold.getScheduleId());
+        scheduleCounterRefreshOutboxService.enqueueRefresh(hold.getScheduleId(), "USER_CANCEL");
         log.info("主动取消订单成功, traceId: {}, orderId: {}, holdId: {}",
                 TraceContext.getOrCreateTraceId(), orderId, hold.getHoldId());
         return orderQueryAppService.getOrderDetail(orderId);

@@ -29,6 +29,15 @@ public class OutboxMessagePublisher {
         });
     }
 
+    public void registerProjectionRefreshPublish(ApOutboxMessage message) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                publishProjectionRefreshMessage(message);
+            }
+        });
+    }
+
     public void publishTimeoutMessage(ApOutboxMessage message, LocalDateTime expireTime) {
         String traceId = TraceContext.getOrCreateTraceId();
         TraceCorrelationData correlationData = new TraceCorrelationData(message.getMsgId(), traceId);
@@ -44,6 +53,23 @@ public class OutboxMessagePublisher {
                 correlationData
         );
         log.info("预约超时消息已提交MQ, traceId: {}, msgId: {}, bizKey: {}",
+                traceId, message.getMsgId(), message.getBizKey());
+    }
+
+    public void publishProjectionRefreshMessage(ApOutboxMessage message) {
+        String traceId = TraceContext.getOrCreateTraceId();
+        TraceCorrelationData correlationData = new TraceCorrelationData(message.getMsgId(), traceId);
+        rabbitTemplate.convertAndSend(
+                RabbitMQConfig.PROJECTION_EXCHANGE,
+                RabbitMQConfig.PROJECTION_ROUTING_KEY,
+                message.getPayload(),
+                mqMessage -> {
+                    mqMessage.getMessageProperties().setHeader(TraceContext.TRACE_HEADER, traceId);
+                    return mqMessage;
+                },
+                correlationData
+        );
+        log.info("排班投影刷新消息已提交MQ, traceId: {}, msgId: {}, bizKey: {}",
                 traceId, message.getMsgId(), message.getBizKey());
     }
 

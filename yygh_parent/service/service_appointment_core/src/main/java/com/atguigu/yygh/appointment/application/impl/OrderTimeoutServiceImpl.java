@@ -10,8 +10,8 @@ import com.atguigu.yygh.appointment.domain.token.TokenGateService;
 import com.atguigu.yygh.appointment.infrastructure.mapper.ApHoldMapper;
 import com.atguigu.yygh.appointment.infrastructure.mapper.ApOrderMapper;
 import com.atguigu.yygh.appointment.infrastructure.mapper.ApOutboxMessageMapper;
-import com.atguigu.yygh.appointment.infrastructure.mapper.ApScheduleMapper;
 import com.atguigu.yygh.appointment.infrastructure.mapper.ApSlotMapper;
+import com.atguigu.yygh.appointment.mq.ScheduleCounterRefreshOutboxService;
 import com.atguigu.yygh.common.trace.TraceContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,9 +26,9 @@ public class OrderTimeoutServiceImpl implements OrderTimeoutService {
     private final ApOrderMapper apOrderMapper;
     private final ApHoldMapper apHoldMapper;
     private final ApSlotMapper apSlotMapper;
-    private final ApScheduleMapper apScheduleMapper;
     private final ApOutboxMessageMapper apOutboxMessageMapper;
     private final TokenGateService tokenGateService;
+    private final ScheduleCounterRefreshOutboxService scheduleCounterRefreshOutboxService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -88,12 +88,8 @@ public class OrderTimeoutServiceImpl implements OrderTimeoutService {
                 throw new AppointmentBizException("超时释放失败，预占单状态异常: " + hold.getHoldId());
             }
 
-            int releasedSchedule = apScheduleMapper.releaseFromHold(hold.getScheduleId());
-            if (releasedSchedule == 0) {
-                throw new AppointmentBizException("超时释放失败，排班聚合回滚异常: " + hold.getScheduleId());
-            }
-
             tokenGateService.releaseScheduleToken(hold.getScheduleId());
+            scheduleCounterRefreshOutboxService.enqueueRefresh(hold.getScheduleId(), "TIMEOUT");
         }
 
         markConsumed(msgId);

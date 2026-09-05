@@ -3,6 +3,8 @@ package com.atguigu.yygh.appointment.job;
 import com.atguigu.yygh.appointment.domain.outbox.model.ApOutboxMessage;
 import com.atguigu.yygh.appointment.infrastructure.mapper.ApOutboxMessageMapper;
 import com.atguigu.yygh.appointment.mq.OutboxMessagePublisher;
+import com.atguigu.yygh.appointment.mq.ScheduleCounterRefreshMessage;
+import com.atguigu.yygh.appointment.mq.ScheduleCounterRefreshOutboxService;
 import com.atguigu.yygh.appointment.mq.TimeoutOrderMessage;
 import com.atguigu.yygh.common.trace.TraceContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -32,8 +34,7 @@ public class OutboxCompensationJob {
             log.info("开始执行 Outbox 补偿, traceId: {}, size: {}", traceId, messages.size());
             for (ApOutboxMessage message : messages) {
                 try {
-                    TimeoutOrderMessage payload = objectMapper.readValue(message.getPayload(), TimeoutOrderMessage.class);
-                    outboxMessagePublisher.publishTimeoutMessage(message, payload.getExpireTime());
+                    republish(message);
                     apOutboxMessageMapper.updateRetry(message.getMsgId(), LocalDateTime.now().plusMinutes(1), null);
                     log.info("Outbox 补偿投递成功, traceId: {}, msgId: {}, bizKey: {}",
                             traceId, message.getMsgId(), message.getBizKey());
@@ -45,5 +46,19 @@ public class OutboxCompensationJob {
         } finally {
             TraceContext.clear();
         }
+    }
+
+    private void republish(ApOutboxMessage message) throws Exception {
+        if ("ORDER_TIMEOUT".equals(message.getBizType())) {
+            TimeoutOrderMessage payload = objectMapper.readValue(message.getPayload(), TimeoutOrderMessage.class);
+            outboxMessagePublisher.publishTimeoutMessage(message, payload.getExpireTime());
+            return;
+        }
+        if (ScheduleCounterRefreshOutboxService.BIZ_TYPE.equals(message.getBizType())) {
+            objectMapper.readValue(message.getPayload(), ScheduleCounterRefreshMessage.class);
+            outboxMessagePublisher.publishProjectionRefreshMessage(message);
+            return;
+        }
+        throw new IllegalStateException("未知的 Outbox 业务类型: " + message.getBizType());
     }
 }
